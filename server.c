@@ -1,3 +1,16 @@
+/*
+ ***************************************************************************
+ * Clarkson University                                                     *
+ * CS 444/544: Operating Systems, Spring 2022                              *
+ * Project: Prototyping a Web Server/Browser                               *
+ * Created by Daqing Hou, dhou@clarkson.edu                                *
+ *            Xinchao Song, xisong@clarkson.edu                            *
+ * March 30, 2022                                                          *
+ * Copyright © 2022 CS 444/544 Instructor Team. All rights reserved.       *
+ * Unauthorized use is strictly prohibited.                                *
+ ***************************************************************************
+ */
+
 #include "net_util.h"
 
 #include <stdio.h>
@@ -228,10 +241,33 @@ void get_session_file_path(int session_id, char path[]) {
 /**
  * Loads every session from the disk one by one if it exists.
  */
-void load_all_sessions() {
-    // TODO: For Part 1.1, write your file operation code here.
-    // Hint: Use get_session_file_path() to get the file path for each session.
-    //       Don't forget to load all of sessions on the disk.
+void load_all_sessions() 
+{
+	// TODO: For Part 1.1, write your file operation code here.
+	// Hint: Use get_session_file_path() to get the file path for each session.
+	//       Don't forget to load all of sessions on the disk.
+
+	for(int s_id = 0; s_id < NUM_SESSIONS; s_id++)
+	{
+		char filePath[25]; 
+		get_session_file_path(s_id, filePath);
+
+		FILE* fptr = fopen(filePath, "r");
+		if(fptr) 
+		{
+			char varName;
+			double varVal;
+			session_list[s_id].in_use = true;
+
+			while(fscanf(fptr, "%c = %lf", &varName, &varVal) != EOF)
+			{
+				int idx = varName - 'a';
+				session_list[s_id].variables[idx] = true;
+				session_list[s_id].values[idx] = varVal;
+			}
+			fclose(fptr);
+		}
+	}
 }
 
 /**
@@ -239,9 +275,22 @@ void load_all_sessions() {
  *
  * @param session_id the session ID
  */
-void save_session(int session_id) {
-    // TODO: For Part 1.1, write your file operation code here.
-    // Hint: Use get_session_file_path() to get the file path for each session.
+void save_session(int session_id) 
+{
+	// TODO: For Part 1.1, write your file operation code here.
+	// Hint: Use get_session_file_path() to get the file path for each session.
+
+	char filePath[25];
+	get_session_file_path(session_id, filePath);
+    	FILE* fptr;
+	fptr = fopen(filePath, "w");
+	if(fptr != NULL)
+	{
+		char result[500];
+		session_to_str(session_id, result);
+		fprintf(fptr, "%s", result); // Freezes here, does not write to file.
+		fclose(fptr);
+	}
 }
 
 /**
