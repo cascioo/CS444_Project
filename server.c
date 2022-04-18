@@ -249,7 +249,7 @@ void load_all_sessions()
 
 	for(int s_id = 0; s_id < NUM_SESSIONS; s_id++)
 	{
-		char filePath[25]; 
+		char filePath[500]; 
 		get_session_file_path(s_id, filePath);
 
 		FILE* fptr = fopen(filePath, "r");
@@ -280,7 +280,7 @@ void save_session(int session_id)
 	// TODO: For Part 1.1, write your file operation code here.
 	// Hint: Use get_session_file_path() to get the file path for each session.
 
-	char filePath[25];
+	char filePath[500];
 	get_session_file_path(session_id, filePath);
     	FILE* fptr;
 	fptr = fopen(filePath, "w");
@@ -306,7 +306,7 @@ int register_browser(int browser_socket_fd) {
     // TODO: For Part 2.2, identify the critical sections where different threads may read from/write to
     //  the same shared static array browser_list and session_list. Place the lock and unlock
     //  code around the critical sections identified.
-
+    pthread_mutex_lock(&browser_list_mutex);
     for (int i = 0; i < NUM_BROWSER; ++i) {
         if (!browser_list[i].in_use) {
             browser_id = i;
@@ -315,10 +315,12 @@ int register_browser(int browser_socket_fd) {
             break;
         }
     }
+    pthread_mutex_unlock(&browser_list_mutex);
 
     char message[BUFFER_LEN];
     receive_message(browser_socket_fd, message);
 
+    pthread_mutex_lock(&session_list_mutex);
     int session_id = strtol(message, NULL, 10);
     if (session_id == -1) {
         for (int i = 0; i < NUM_SESSIONS; ++i) {
@@ -329,6 +331,7 @@ int register_browser(int browser_socket_fd) {
             }
         }
     }
+    pthread_mutex_lock(&session_list_mutex);
     browser_list[browser_id].session_id = session_id;
 
     sprintf(message, "%d", session_id);
@@ -433,7 +436,8 @@ void start_server(int port) {
 
         // Starts the handler thread for the new browser.
         // TODO: For Part 2.1, creat a thread to run browser_handler() here.
-        browser_handler(browser_socket_fd);
+        thread handler(browser_handler, browser_socket_fd);
+	//browser_handler(browser_socket_fd);
     }
 
     // Closes the socket.
