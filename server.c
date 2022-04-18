@@ -275,23 +275,24 @@ void load_all_sessions()
  *
  * @param session_id the session ID
  */
-void save_session(int session_id) 
+void save_session(int session_id)
 {
 	// TODO: For Part 1.1, write your file operation code here.
-	// Hint: Use get_session_file_path() to get the file path for each session.
-
-	char filePath[25];
-	get_session_file_path(session_id, filePath);
-    	FILE* fptr;
-	fptr = fopen(filePath, "w");
-	if(fptr != NULL)
-	{
-		char result[500];
+    // Hint: Use get_session_file_path() to get the file path for each session.
+	
+    char filePath[25];
+    get_session_file_path(session_id, filePath);
+    FILE* fptr;
+    fptr = fopen(filePath, "w");
+    if(fptr != NULL)
+    {
+		char result[BUFFER_LEN];
 		session_to_str(session_id, result);
-		fprintf(fptr, "%s", result); // Freezes here, does not write to file.
+		fprintf(fptr, "%s", result);
 		fclose(fptr);
 	}
 }
+
 
 /**
  * Assigns a browser ID to the new browser.
