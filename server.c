@@ -286,7 +286,7 @@ void save_session(int session_id)
 	fptr = fopen(filePath, "w");
 	if(fptr != NULL)
 	{
-		char result[25];
+		char result[BUFFER_LEN];
 		session_to_str(session_id, result);
 		fprintf(fptr, "%s", result); // Freezes here, does not write to file.
 		fclose(fptr);
