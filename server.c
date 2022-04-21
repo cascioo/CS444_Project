@@ -249,7 +249,7 @@ void load_all_sessions()
 
 	for(int s_id = 0; s_id < NUM_SESSIONS; s_id++)
 	{
-		char filePath[500]; 
+		char filePath[25]; 
 		get_session_file_path(s_id, filePath);
 
 		FILE* fptr = fopen(filePath, "r");
@@ -280,13 +280,13 @@ void save_session(int session_id)
 	// TODO: For Part 1.1, write your file operation code here.
 	// Hint: Use get_session_file_path() to get the file path for each session.
 
-	char filePath[500];
+	char filePath[25];
 	get_session_file_path(session_id, filePath);
     	FILE* fptr;
 	fptr = fopen(filePath, "w");
 	if(fptr != NULL)
 	{
-		char result[500];
+		char result[25];
 		session_to_str(session_id, result);
 		fprintf(fptr, "%s", result); // Freezes here, does not write to file.
 		fclose(fptr);
