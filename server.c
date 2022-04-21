@@ -79,7 +79,7 @@ int register_browser(int browser_socket_fd);
 // processing the message received,
 // broadcasting the update to all browsers with the same session ID,
 // and backing up the session on the disk.
-void browser_handler(int browser_socket_fd);
+void* browser_handler(void* browser_socket_fd);
 
 // Starts the server.
 // Sets up the connection,
@@ -278,18 +278,17 @@ void load_all_sessions()
 void save_session(int session_id)
 {
 	// TODO: For Part 1.1, write your file operation code here.
-    // Hint: Use get_session_file_path() to get the file path for each session.
-	
-    char filePath[25];
-    get_session_file_path(session_id, filePath);
-    FILE* fptr;
-    fptr = fopen(filePath, "w");
-    if(fptr != NULL)
-    {
-		char result[BUFFER_LEN];
-		session_to_str(session_id, result);
-		fprintf(fptr, "%s", result);
-		fclose(fptr);
+  // Hint: Use get_session_file_path() to get the file path for each session.
+  char filePath[25];
+  get_session_file_path(session_id, filePath);
+  FILE* fptr;
+  fptr = fopen(filePath, "w");
+  if(fptr != NULL)
+  {
+	  char result[BUFFER_LEN];
+	  session_to_str(session_id, result);
+	  fprintf(fptr, "%s", result);
+	  fclose(fptr);
 	}
 }
 
@@ -307,7 +306,7 @@ int register_browser(int browser_socket_fd) {
     // TODO: For Part 2.2, identify the critical sections where different threads may read from/write to
     //  the same shared static array browser_list and session_list. Place the lock and unlock
     //  code around the critical sections identified.
-
+    pthread_mutex_lock(&browser_list_mutex);
     for (int i = 0; i < NUM_BROWSER; ++i) {
         if (!browser_list[i].in_use) {
             browser_id = i;
@@ -316,10 +315,12 @@ int register_browser(int browser_socket_fd) {
             break;
         }
     }
+    pthread_mutex_unlock(&browser_list_mutex);
 
     char message[BUFFER_LEN];
     receive_message(browser_socket_fd, message);
 
+    pthread_mutex_lock(&session_list_mutex);
     int session_id = strtol(message, NULL, 10);
     if (session_id == -1) {
         for (int i = 0; i < NUM_SESSIONS; ++i) {
@@ -330,6 +331,7 @@ int register_browser(int browser_socket_fd) {
             }
         }
     }
+    pthread_mutex_unlock(&session_list_mutex);
     browser_list[browser_id].session_id = session_id;
 
     sprintf(message, "%d", session_id);
@@ -345,10 +347,11 @@ int register_browser(int browser_socket_fd) {
  *
  * @param browser_socket_fd the socket file descriptor of the browser connected
  */
-void browser_handler(int browser_socket_fd) {
+void* browser_handler(void* browser_socket_fd) {
     int browser_id;
-
-    browser_id = register_browser(browser_socket_fd);
+    int int_browser_socket_fd = *((int*) browser_socket_fd);
+    printf("%d", int_browser_socket_fd);
+    browser_id = register_browser(int_browser_socket_fd);
 
     int socket_fd = browser_list[browser_id].socket_fd;
     int session_id = browser_list[browser_id].session_id;
@@ -368,7 +371,7 @@ void browser_handler(int browser_socket_fd) {
             browser_list[browser_id].in_use = false;
             pthread_mutex_unlock(&browser_list_mutex);
             printf("Browser #%d exited.\n", browser_id);
-            return;
+            return NULL;
         }
 
         if (message[0] == '\0') {
@@ -386,6 +389,7 @@ void browser_handler(int browser_socket_fd) {
 
         save_session(session_id);
     }
+    return NULL;
 }
 
 /**
@@ -428,13 +432,16 @@ void start_server(int port) {
         socklen_t browser_address_len = sizeof(browser_address);
         int browser_socket_fd = accept(server_socket_fd, (struct sockaddr *) &browser_address, &browser_address_len);
         if ((browser_socket_fd) < 0) {
-            perror("Socket accept failed");
+            printf("Socket accept failed");
             continue;
         }
 
         // Starts the handler thread for the new browser.
         // TODO: For Part 2.1, creat a thread to run browser_handler() here.
-        browser_handler(browser_socket_fd);
+        pthread_t thread_id;
+	printf("Hello %d", browser_socket_fd);
+	int err = pthread_create(&thread_id, NULL, browser_handler, &browser_socket_fd);
+	//browser_handler(&browser_socket_fd);
     }
 
     // Closes the socket.
