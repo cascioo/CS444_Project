@@ -8,7 +8,7 @@
 #include <sys/socket.h>
 
 #define DEFAULT_HOST_IP "127.0.0.1"
-#define DEFAULT_PORT 7000
+#define DEFAULT_PORT 42069
 #define BUFFER_LEN 1024
 
 // Sends the message through socket.

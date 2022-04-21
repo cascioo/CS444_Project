@@ -331,7 +331,7 @@ int register_browser(int browser_socket_fd) {
             }
         }
     }
-    pthread_mutex_lock(&session_list_mutex);
+    pthread_mutex_unlock(&session_list_mutex);
     browser_list[browser_id].session_id = session_id;
 
     sprintf(message, "%d", session_id);
@@ -440,8 +440,8 @@ void start_server(int port) {
         // TODO: For Part 2.1, creat a thread to run browser_handler() here.
         pthread_t thread_id;
 	printf("Hello %d", browser_socket_fd);
-	//int err = pthread_create(&thread_id, NULL, browser_handler, &browser_socket_fd);
-	browser_handler(&browser_socket_fd);
+	int err = pthread_create(&thread_id, NULL, browser_handler, &browser_socket_fd);
+	//browser_handler(&browser_socket_fd);
     }
 
     // Closes the socket.
