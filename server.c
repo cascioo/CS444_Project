@@ -79,7 +79,9 @@ int register_browser(int browser_socket_fd);
 // processing the message received,
 // broadcasting the update to all browsers with the same session ID,
 // and backing up the session on the disk.
-void* browser_handler(void* browser_socket_fd);
+void browser_handler(int browser_socket_fd);
+
+void* browser_handler_helper(void* socker_fd);
 
 // Starts the server.
 // Sets up the connection,
@@ -164,18 +166,37 @@ bool process_message(int session_id, const char message[]) {
 
     // Processes the result variable.
     token = strtok(data, " ");
-    result_idx = token[0] - 'a';
+    if(strlen(token) == 1 && 'a' <= token[0] <= 'z'){
+	result_idx = token[0] - 'a';
+    } else {
+	return false;
+    }
 
     // Processes "=".
     token = strtok(NULL, " ");
+    if(strlen(token) != 1 || token[0] != '='){
+	return false;
+    }
+
 
     // Processes the first variable/value.
     token = strtok(NULL, " ");
+    if(token == NULL){
+	return false;
+    }
     if (is_str_numeric(token)) {
         first_value = strtod(token, NULL);
     } else {
-        int first_idx = token[0] - 'a';
-        first_value = session_list[session_id].values[first_idx];
+	if(strlen(token) == 1 && 'a' <= token[0] <= 'z'){
+            int first_idx = token[0] - 'a';
+	    if(session_list[session_id].variables[first_idx] == false){
+		return false;
+	    } else {
+            	first_value = session_list[session_id].values[first_idx];
+	    }
+	} else {
+	    return false;
+	}
     }
 
     // Processes the operation symbol.
@@ -189,6 +210,9 @@ bool process_message(int session_id, const char message[]) {
 
     // Processes the second variable/value.
     token = strtok(NULL, " ");
+    if(token == NULL){
+	return false;
+    }
     if (is_str_numeric(token)) {
         second_value = strtod(token, NULL);
     } else {
@@ -347,11 +371,9 @@ int register_browser(int browser_socket_fd) {
  *
  * @param browser_socket_fd the socket file descriptor of the browser connected
  */
-void* browser_handler(void* browser_socket_fd) {
+void browser_handler(int browser_socket_fd) {
     int browser_id;
-    int int_browser_socket_fd = *((int*) browser_socket_fd);
-    printf("%d", int_browser_socket_fd);
-    browser_id = register_browser(int_browser_socket_fd);
+    browser_id = register_browser(browser_socket_fd);
 
     int socket_fd = browser_list[browser_id].socket_fd;
     int session_id = browser_list[browser_id].session_id;
@@ -371,7 +393,7 @@ void* browser_handler(void* browser_socket_fd) {
             browser_list[browser_id].in_use = false;
             pthread_mutex_unlock(&browser_list_mutex);
             printf("Browser #%d exited.\n", browser_id);
-            return NULL;
+            return;
         }
 
         if (message[0] == '\0') {
@@ -381,7 +403,8 @@ void* browser_handler(void* browser_socket_fd) {
         bool data_valid = process_message(session_id, message);
         if (!data_valid) {
             // TODO: For Part 3.1, add code here to send the error message to the browser.
-            continue;
+            broadcast(session_id, "Invalid Input");
+	    continue;
         }
 
         session_to_str(session_id, response);
@@ -389,6 +412,11 @@ void* browser_handler(void* browser_socket_fd) {
 
         save_session(session_id);
     }
+    return;
+}
+
+void* browser_handler_helper(void* socket_fd){
+    browser_handler(*(int*)socket_fd);
     return NULL;
 }
 
@@ -439,8 +467,7 @@ void start_server(int port) {
         // Starts the handler thread for the new browser.
         // TODO: For Part 2.1, creat a thread to run browser_handler() here.
         pthread_t thread_id;
-	printf("Hello %d", browser_socket_fd);
-	int err = pthread_create(&thread_id, NULL, browser_handler, &browser_socket_fd);
+	int err = pthread_create(&thread_id, NULL, browser_handler_helper, &browser_socket_fd);
 	//browser_handler(&browser_socket_fd);
     }
 
