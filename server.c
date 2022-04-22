@@ -42,19 +42,22 @@ typedef struct session_struct {
     double values[NUM_VARIABLES];
 } session_t;
 
-typedef struct hashmap_struct {
+typedef struct session_node_struct {
 	int session_id;
 	session_t session;
-	struct hashmap_struct* left;
-	struct hashmap_struct* right; 
-} hashmap_t;
+	struct session_node_struct* left;
+	struct session_node_struct* right;
+} session_node_t;
 
 static browser_t browser_list[NUM_BROWSER];                             // Stores the information of all browsers.
-// TODO: For Part 3.2, convert the session_list to a simple hashmap/dictionary.
-//static session_t session_list[NUM_SESSIONS];                            // Stores the information of all sessions.
-static hashmap_t session_hashmap;
+// TODO: For Part 3.2, convert the session_list to a simple hashmap/dictionary.                          // Stores the information of all sessions.
 static pthread_mutex_t browser_list_mutex = PTHREAD_MUTEX_INITIALIZER;  // A mutex lock for the browser list.
 static pthread_mutex_t session_list_mutex = PTHREAD_MUTEX_INITIALIZER;  // A mutex lock for the session list.
+static session_node_t session_node_head;				// Stores the information of all sessions.
+
+// node functions.
+session_t* get_session(int session_id);
+void add_session(int session_id);
 
 // Returns the string format of the given session.
 // There will be always 9 digits in the output string.
@@ -91,10 +94,6 @@ void browser_handler(int browser_socket_fd);
 
 void* browser_handler_helper(void* socker_fd);
 
-// Hashmap functions.
-session_t* get_session(int session_id);
-void add_session(int session_id);
-
 // Starts the server.
 // Sets up the connection,
 // keeps accepting new browsers,
@@ -103,68 +102,69 @@ void start_server(int port);
 
 session_t* get_session(int session_id)
 {
-	printf("Reached get_session(%d)", session_id);
-	hashmap_t* hashmap = &session_hashmap;
-	while(hashmap != NULL)
+	session_node_t* node = &session_node_head;
+	while(node != NULL)
 	{
-		if(hashmap->session_id == session_id)
-			return &(hashmap->session);
-		else if(session_id < hashmap->session_id)
-			hashmap = hashmap->left;
-		else if(session_id > hashmap->session_id)
-			hashmap = hashmap->right;
+		if(node->session_id == session_id)
+			return &(node ->session);
+		else if(session_id < node->session_id)
+			node = node->left;
+		else if(session_id > node->session_id)
+			node = node->right;
 	}
+	printf("Error: Failed to find session %d\n",session_id);
 	return NULL;
 }
 
 void add_session(int session_id)
 {
-	printf("Reached add_session(%d)", session_id);
-	if(session_id == 0 || &session_hashmap == NULL)
-	{
-		hashmap_t* new_session = malloc(sizeof(hashmap_t));
-		session_hashmap = *new_session;
-	}
-
-
-	hashmap_t* hashmap = &session_hashmap;
-
 	if(session_id < 0 || session_id > NUM_SESSIONS)
 	{
-		printf("Error: session_id (%d) out of bounds", session_id);
+		printf("Error: session_id (%d) out of bounds\n", session_id);
 		return;
 	}
 	
-	while(hashmap != NULL)
+	session_node_t* new_node = malloc(sizeof(session_node_t));
+	new_node->session_id = session_id;
+
+	if(session_id == 0)
 	{
-		if(hashmap->session_id == session_id)
+		session_node_head = *new_node;
+		return;
+	}
+
+	session_node_t* node = &session_node_head;
+	
+	while(node != NULL)
+	{
+		if(node->session_id == session_id)
 		{
-			printf("Error: Duplicate session_id (%d) added", session_id);
+			printf("Error: Attempted to add duplicate session_id (%d) - Ignored.\n", session_id);
 			return;
 		}
-		else if(session_id < hashmap->session_id)
+		else if(session_id < node->session_id)
 		{
-			if(hashmap->left == NULL)
+			if(node->left == NULL)
 			{
-				hashmap_t* new_session = malloc(sizeof(hashmap_t));
-				hashmap->left = new_session;
+				node->left = new_node;
 				return;
 			}
-			hashmap = hashmap->left;
+			node = node->left;
 		}
-		else if(session_id > hashmap->session_id)
+		else if(session_id > node->session_id)
 		{
-			if(hashmap->right == NULL)
+			if(node->right == NULL)
 			{
-				hashmap_t* new_session = malloc(sizeof(hashmap_t));
-				hashmap->right = new_session;
+				node->right = new_node;
 				return;
 			}
-			hashmap = hashmap->right;
+			node = node->right;
 		}
 	}
-	printf("==Error==\nsession_id=%d\n=========",session_id);
+	printf("Error: Unknown issue adding session (%d)\n",session_id);
+	free(new_node);
 }
+
 
 /**
  * Returns the string format of the given session.
@@ -243,37 +243,26 @@ bool process_message(int session_id, const char message[]) {
 
     // Processes the result variable.
     token = strtok(data, " ");
-    if(strlen(token) == 1 && 'a' <= token[0] <= 'z'){
-	result_idx = token[0] - 'a';
-    } else {
-	return false;
-    }
+    if(strlen(token) != 1 || 'a' > token[0] || 'z' < token[0]) { return false; }
+    result_idx = token[0] - 'a';
 
     // Processes "=".
     token = strtok(NULL, " ");
-    if(strlen(token) != 1 || token[0] != '='){
-	return false;
-    }
+
+    if(token == NULL || strlen(token) != 1 || token[0] != '=') { return false; }
 
 
     // Processes the first variable/value.
     token = strtok(NULL, " ");
-    if(token == NULL){
-	return false;
-    }
+    if(token == NULL) { return false; }
     if (is_str_numeric(token)) {
         first_value = strtod(token, NULL);
-    } else {
-	if(strlen(token) == 1 && 'a' <= token[0] <= 'z'){
-            int first_idx = token[0] - 'a';
-	    if(get_session(session_id)->variables[first_idx] == false) {
-		return false;
-	    } else {
-            	first_value = get_session(session_id)->values[first_idx];
-	    }
-	} else {
-	    return false;
-	}
+    } else 
+    {
+	if(strlen(token) != 1 || 'a' > token[0] || 'z' < token[0]) { return false; }
+	int first_idx = token[0] - 'a';
+	if(get_session(session_id)->variables[first_idx] == false) { return false; }
+        first_value = get_session(session_id)->values[first_idx];
     }
 
     // Processes the operation symbol.
@@ -287,12 +276,11 @@ bool process_message(int session_id, const char message[]) {
 
     // Processes the second variable/value.
     token = strtok(NULL, " ");
-    if(token == NULL){
-	return false;
-    }
+    if(token == NULL) { return false; }
     if (is_str_numeric(token)) {
         second_value = strtod(token, NULL);
     } else {
+        if(strlen(token) != 1 || 'a' > token[0] || 'z' < token[0]) { return false; }
         int second_idx = token[0] - 'a';
         second_value = get_session(session_id)->values[second_idx];
     }
@@ -347,12 +335,12 @@ void load_all_sessions()
 	// TODO: For Part 1.1, write your file operation code here.
 	// Hint: Use get_session_file_path() to get the file path for each session.
 	//       Don't forget to load all of sessions on the disk.
-	printf("LOADING ALL SESSIONS");
+
 	for(int s_id = 0; s_id < NUM_SESSIONS; s_id++)
 	{
-		add_session(s_id);
 		char filePath[25]; 
 		get_session_file_path(s_id, filePath);
+		add_session(s_id);
 
 		FILE* fptr = fopen(filePath, "r");
 		if(fptr) 
@@ -361,7 +349,7 @@ void load_all_sessions()
 			double varVal;
 			get_session(s_id)->in_use = true;
 
-			while(fscanf(fptr, "%c = %lf", &varName, &varVal) != EOF)
+			while(fscanf(fptr, "%c = %lf\n", &varName, &varVal) != EOF)
 			{
 				int idx = varName - 'a';
 				get_session(s_id)->variables[idx] = true;
@@ -380,17 +368,17 @@ void load_all_sessions()
 void save_session(int session_id)
 {
 	// TODO: For Part 1.1, write your file operation code here.
-  // Hint: Use get_session_file_path() to get the file path for each session.
-  char filePath[25];
-  get_session_file_path(session_id, filePath);
-  FILE* fptr;
-  fptr = fopen(filePath, "w");
-  if(fptr != NULL)
-  {
-	  char result[BUFFER_LEN];
-	  session_to_str(session_id, result);
-	  fprintf(fptr, "%s", result);
-	  fclose(fptr);
+	// Hint: Use get_session_file_path() to get the file path for each session.
+	char filePath[25];
+	get_session_file_path(session_id, filePath);
+	FILE* fptr;
+	fptr = fopen(filePath, "w");
+	if(fptr != NULL)
+	{
+		char result[BUFFER_LEN];
+		session_to_str(session_id, result);
+		fprintf(fptr, "%s", result);
+		fclose(fptr);
 	}
 }
 
@@ -426,7 +414,7 @@ int register_browser(int browser_socket_fd) {
     int session_id = strtol(message, NULL, 10);
     if (session_id == -1) {
         for (int i = 0; i < NUM_SESSIONS; ++i) {
-            if (!get_session(i)->in_use) {
+            if (!get_session(session_id)->in_use) {
                 session_id = i;
                 get_session(session_id)->in_use = true;
                 break;
@@ -505,7 +493,6 @@ void* browser_handler_helper(void* socket_fd){
  * @param port the port that the server is running on
  */
 void start_server(int port) {
-    printf("Reached start_server");
     // Loads every session if there exists one on the disk.
     load_all_sessions();
 
@@ -547,7 +534,6 @@ void start_server(int port) {
         // TODO: For Part 2.1, creat a thread to run browser_handler() here.
         pthread_t thread_id;
 	int err = pthread_create(&thread_id, NULL, browser_handler_helper, &browser_socket_fd);
-	//browser_handler(&browser_socket_fd);
     }
 
     // Closes the socket.
@@ -562,8 +548,8 @@ void start_server(int port) {
  * @return exit code
  */
 int main(int argc, char *argv[]) {
-    printf("Reached main()");
     int port = DEFAULT_PORT;
+
     if (argc == 1) {
     } else if ((argc == 3)
                && ((strcmp(argv[1], "--port") == 0) || (strcmp(argv[1], "-p") == 0))) {
@@ -578,7 +564,7 @@ int main(int argc, char *argv[]) {
         puts("Invalid port.");
         exit(EXIT_FAILURE);
     }
-	printf("Reached end main()");
+
     start_server(port);
 
     exit(EXIT_SUCCESS);
